@@ -2,7 +2,7 @@
 // @name         Random Mods
 // @match        https://hordes.io/play*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=hordes.io
-// @version      19
+// @version      20
 // @description  Random mods taken from other scripts and put into one script.
 // @author       rndms
 // @grant        none
@@ -1864,4 +1864,6 @@
             }
         });
     }
+
+    //testing update
 })();
