@@ -2,7 +2,7 @@
 // @name         Random Mods
 // @match        https://hordes.io/play*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=hordes.io
-// @version      21
+// @version      22
 // @description  Random mods taken from other scripts and put into one script.
 // @author       rndms
 // @grant        none
@@ -37,6 +37,7 @@
         removeInventoryFilter: false,
         removeUpgradeButton: false,
         removeBarTexts: false,
+        hideMap: false,
         partyTransition: true,
         mentionHighlight: true,
         chatPos: { x: null, y: null, xRatio: null, yRatio: null }
@@ -54,6 +55,7 @@
     if (settings.removeInventoryFilter === undefined) settings.removeInventoryFilter = false;
     if (settings.removeUpgradeButton === undefined) settings.removeUpgradeButton = false;
     if (settings.removeBarTexts === undefined) settings.removeBarTexts = false;
+    if (settings.hideMap === undefined) settings.hideMap = false;
     if (settings.partyTransition === undefined) settings.partyTransition = true;
     if (settings.mentionHighlight === undefined) settings.mentionHighlight = true;
     if (!settings.chatPos) settings.chatPos = { x: null, y: null, xRatio: null, yRatio: null };
@@ -65,9 +67,12 @@
         updateRemovalStyles();
     }
 
-    // Dynamic Style Engine for Non-Destructive Hiding
+    // Dynamic Style Engine for Non-Destructive Hiding & Position Adapting
     var removalStyleRule = document.createElement('style');
     document.head.appendChild(removalStyleRule);
+
+    var debugBarStyleRule = document.createElement('style');
+    document.head.appendChild(debugBarStyleRule);
 
     function updateRemovalStyles() {
         let css = '';
@@ -83,10 +88,17 @@
         if (settings.removeBarTexts) {
             css += '.bar.btn.black.grey.svelte-nijy6x .textyellow, .bar.btn.black.grey.svelte-nijy6x .textorange, .bar.btn.black.grey.svelte-nijy6x .textpurp { display: none !important; }\n';
         }
+        if (settings.hideMap) {
+            css += '#minimapcontainer { display: none !important; }\n';
+        }
         if (settings.chatRemake) {
             css += '.time.svelte-7c1tlw { display: none !important; }\n';
         }
         removalStyleRule.textContent = css;
+
+        // Dynamic debug bar placement based on map visibility
+        let debugTop = settings.hideMap ? '42px' : '257px';
+        debugBarStyleRule.textContent = `.bar.btn.black.grey { background: transparent !important; background-color: transparent !important; border: none !important; box-shadow: none !important; position: fixed !important; top: ${debugTop} !important; right: 8px !important; margin: 0 !important; padding: 0 !important; text-align: right !important; z-index: 100 !important; }`;
     }
 
     // ==========================================
@@ -1357,7 +1369,6 @@
     var ccStyleRule = document.createElement('style');
     var classColorsStyleRule = document.createElement('style');
     var yellChatStyleRule = document.createElement('style');
-    var debugBarStyleRule = document.createElement('style');
 
     function checkAndSyncBuffs() {
         const nativeState = localStorage.getItem("buffsHideIrrelevant") === "true";
@@ -1485,7 +1496,8 @@
                     { key: "removeEntityPanel", id: "rndms-entitypanel", label: "Hide Entity Panel", desc: "" },
                     { key: "removeInventoryFilter", id: "rndms-invfilter", label: "Hide Inv Filter", desc: "" },
                     { key: "removeUpgradeButton", id: "rndms-upgradebtn", label: "Hide Stash Upgrade", desc: "" },
-                    { key: "removeBarTexts", id: "rndms-debugbar", label: "Clean Debug Bar", desc: "" }
+                    { key: "removeBarTexts", id: "rndms-debugbar", label: "Clean Debug Bar", desc: "" },
+                    { key: "hideMap", id: "rndms-hidemap", label: "Hide Map", desc: "" }
                 ]
             }
         ];
@@ -1595,9 +1607,6 @@
 
         yellChatStyleRule.textContent = '.textyell { color: #FFCB9D; } .btn.textyell { color: #FFCB9D; }';
         document.head.appendChild(yellChatStyleRule);
-
-        debugBarStyleRule.textContent = '.bar.btn.black.grey { background: transparent !important; background-color: transparent !important; border: none !important; box-shadow: none !important; position: fixed !important; top: 257px !important; right: 8px !important; margin: 0 !important; padding: 0 !important; text-align: right !important; z-index: 100 !important; }';
-        document.head.appendChild(debugBarStyleRule);
 
         borderStyleRule.disabled = !settings.blackBorders;
         ccStyleRule.disabled = !settings.ccIndicator;
