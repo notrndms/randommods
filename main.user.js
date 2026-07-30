@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Random Mods
+// @name         Random Mods Temp
 // @match        https://hordes.io/play*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=hordes.io
-// @version      22
+// @version      22.1
 // @description  Random mods taken from other scripts and put into one script.
 // @author       rndms
 // @grant        none
@@ -74,6 +74,23 @@
     var debugBarStyleRule = document.createElement('style');
     document.head.appendChild(debugBarStyleRule);
 
+    function updateDebugBarPosition() {
+        // Detects KekUI top buttons (µUI, Lck, Buf, Mo) static text regardless of hover state
+        const kekUIActive = Array.from(document.querySelectorAll('.btn')).some(btn => {
+            const txt = btn.textContent;
+            return txt.includes('µUI') || txt.includes('Lck') || txt.includes('Buf') || txt.includes('Mo');
+        });
+
+        let debugTop;
+        if (settings.hideMap) {
+            debugTop = kekUIActive ? '80px' : '42px';
+        } else {
+            debugTop = kekUIActive ? '295px' : '257px';
+        }
+
+        debugBarStyleRule.textContent = `.bar.btn.black.grey { background: transparent !important; background-color: transparent !important; border: none !important; box-shadow: none !important; position: fixed !important; top: ${debugTop} !important; right: 8px !important; margin: 0 !important; padding: 0 !important; text-align: right !important; z-index: 100 !important; }`;
+    }
+
     function updateRemovalStyles() {
         let css = '';
         if (settings.removeLevelBar) {
@@ -96,9 +113,7 @@
         }
         removalStyleRule.textContent = css;
 
-        // Dynamic debug bar placement based on map visibility
-        let debugTop = settings.hideMap ? '42px' : '257px';
-        debugBarStyleRule.textContent = `.bar.btn.black.grey { background: transparent !important; background-color: transparent !important; border: none !important; box-shadow: none !important; position: fixed !important; top: ${debugTop} !important; right: 8px !important; margin: 0 !important; padding: 0 !important; text-align: right !important; z-index: 100 !important; }`;
+        updateDebugBarPosition();
     }
 
     // ==========================================
@@ -1632,6 +1647,7 @@
                 mentionHighlighter();
                 addRndmsSettings();
                 injectBuffsButton();
+                updateDebugBarPosition();
 
                 let equipSlots = document.getElementById("equipslots");
                 if (!equipSlots) {
