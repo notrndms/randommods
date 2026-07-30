@@ -2,7 +2,7 @@
 // @name         Random Mods
 // @match        https://hordes.io/play*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=hordes.io
-// @version      22.2
+// @version      22.3
 // @description  Random mods taken from other scripts and put into one script.
 // @author       rndms
 // @grant        none
@@ -38,6 +38,7 @@
         removeUpgradeButton: false,
         removeBarTexts: false,
         hideMap: false,
+        hideKekui: false,
         partyTransition: true,
         mentionHighlight: true,
         chatPos: { x: null, y: null, xRatio: null, yRatio: null }
@@ -56,6 +57,7 @@
     if (settings.removeUpgradeButton === undefined) settings.removeUpgradeButton = false;
     if (settings.removeBarTexts === undefined) settings.removeBarTexts = false;
     if (settings.hideMap === undefined) settings.hideMap = false;
+    if (settings.hideKekui === undefined) settings.hideKekui = false;
     if (settings.partyTransition === undefined) settings.partyTransition = true;
     if (settings.mentionHighlight === undefined) settings.mentionHighlight = true;
     if (!settings.chatPos) settings.chatPos = { x: null, y: null, xRatio: null, yRatio: null };
@@ -74,16 +76,22 @@
     var debugBarStyleRule = document.createElement('style');
     document.head.appendChild(debugBarStyleRule);
 
+    var kekuiStyleRule = document.createElement('style');
+    document.head.appendChild(kekuiStyleRule);
+
     function updateDebugBarPosition() {
-        // Detects KekUI top buttons (µUI, Lck, Buf, Mo) static text regardless of hover state
-        const kekUIActive = Array.from(document.querySelectorAll('.btn')).some(btn => {
-            const txt = btn.textContent;
-            return txt.includes('µUI') || txt.includes('Lck') || txt.includes('Buf') || txt.includes('Mo');
-        });
+        const kekUIActive = !settings.hideKekui && (
+            document.querySelector('.sysbtnbarKEK') !== null ||
+            Array.from(document.querySelectorAll('.btn')).some(btn => {
+                const txt = btn.textContent;
+                return txt.includes('µUI') || txt.includes('Lck') || txt.includes('Buf') || txt.includes('Mo');
+            })
+        );
 
         let debugTop;
         if (settings.hideMap) {
-            debugTop = kekUIActive ? '80px' : '42px';
+            // Set to 78px to place cleanly right below the KekUI buttons without overlap
+            debugTop = kekUIActive ? '78px' : '42px';
         } else {
             debugTop = kekUIActive ? '295px' : '257px';
         }
@@ -112,6 +120,12 @@
             css += '.time.svelte-7c1tlw { display: none !important; }\n';
         }
         removalStyleRule.textContent = css;
+
+        if (settings.hideKekui) {
+            kekuiStyleRule.textContent = `.sysbtnbarKEK { display: none !important; }`;
+        } else {
+            kekuiStyleRule.textContent = ``;
+        }
 
         updateDebugBarPosition();
     }
@@ -1512,7 +1526,8 @@
                     { key: "removeInventoryFilter", id: "rndms-invfilter", label: "Hide Inv Filter", desc: "" },
                     { key: "removeUpgradeButton", id: "rndms-upgradebtn", label: "Hide Stash Upgrade", desc: "" },
                     { key: "removeBarTexts", id: "rndms-debugbar", label: "Clean Debug Bar", desc: "" },
-                    { key: "hideMap", id: "rndms-hidemap", label: "Hide Map", desc: "" }
+                    { key: "hideMap", id: "rndms-hidemap", label: "Hide Map", desc: "" },
+                    { key: "hideKekui", id: "rndms-hidekekui", label: "Hide Kekui Buttons", desc: "Hides µUI, Lck, Buf, and Mo buttons and repositions debug bar" }
                 ]
             }
         ];
@@ -1647,7 +1662,7 @@
                 mentionHighlighter();
                 addRndmsSettings();
                 injectBuffsButton();
-                updateDebugBarPosition();
+                updateRemovalStyles();
 
                 let equipSlots = document.getElementById("equipslots");
                 if (!equipSlots) {
@@ -1701,28 +1716,46 @@
     }
 
     // ==========================================
-    // 6. PVP KILL LOG FORMAT FEATURE
+    // 6. PVP KILL LOG FORMAT FEATURE (KEKUI COMPATIBLE)
     // ==========================================
     function applyKillMessageFormat() {
         if (!settings.killMsgFormat) return;
 
-        let cb = document.getElementById('chat') || document.querySelector('.chat, [class*="chat-container"]');
-        if (!cb) return;
+        // Target both native Hordes chat and KekUI custom log panel containers
+        let chatContainers = document.querySelectorAll(
+            '#chat, .chat, [class*="chat-container"], .chatlog, .log.panel.scrollbar, [class*="chatlog"]'
+        );
+        if (!chatContainers.length) return;
 
-        let articles = cb.querySelectorAll('article');
-        articles.forEach(article => {
-            if (article.querySelector('.textpvp') || article.textContent.includes(' killed ') || article.textContent.includes(' > ')) {
-                let walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT, null, false);
-                let node;
-                while (node = walker.nextNode()) {
-                    if (node.nodeValue.includes(' killed ')) {
-                        node.nodeValue = node.nodeValue.replace(/ killed /g, ' > ');
+        chatContainers.forEach(cb => {
+            // Target articles and KekUI log row elements
+            let lines = cb.querySelectorAll('article, div, span');
+            lines.forEach(line => {
+                // Check if the line is a kill message and has not been processed yet
+                if (line.dataset.killfmtDone) return;
+
+                let text = line.textContent;
+                if (text.includes(' killed ') || text.includes(' for ')) {
+                    let walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT, null, false);
+                    let node;
+                    let modified = false;
+
+                    while (node = walker.nextNode()) {
+                        if (node.nodeValue.includes(' killed ')) {
+                            node.nodeValue = node.nodeValue.replace(/ killed /g, ' > ');
+                            modified = true;
+                        }
+                        if (node.nodeValue.includes(' for ')) {
+                            node.nodeValue = node.nodeValue.replace(/ for /g, ' | ');
+                            modified = true;
+                        }
                     }
-                    if (node.nodeValue.includes(' for ')) {
-                        node.nodeValue = node.nodeValue.replace(/ for /g, ' | ');
+
+                    if (modified) {
+                        line.dataset.killfmtDone = "1";
                     }
                 }
-            }
+            });
         });
     }
 
