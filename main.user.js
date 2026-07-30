@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Random Mods Temp
+// @name         Random Mods
 // @match        https://hordes.io/play*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=hordes.io
-// @version      22.1
+// @version      22.2
 // @description  Random mods taken from other scripts and put into one script.
 // @author       rndms
 // @grant        none
@@ -1745,6 +1745,11 @@
 
     let isChatDragInitialized = false;
 
+    // Ensure context menus always render above moved UI elements
+    var contextMenuStyleRule = document.createElement('style');
+    contextMenuStyleRule.textContent = '.panel.context { z-index: 10000 !important; }';
+    document.head.appendChild(contextMenuStyleRule);
+
     function applyChatDragState() {
         const container = getChatContainer();
         if (!container) return;
@@ -1772,7 +1777,7 @@
             posY = Math.max(0, Math.min(posY, maxTop));
 
             container.style.setProperty('position', 'fixed', 'important');
-            container.style.setProperty('z-index', '9999', 'important');
+            container.style.setProperty('z-index', '100', 'important'); // Fixed z-index layering issue
             container.style.setProperty('width', '450px', 'important');
             container.style.setProperty('left', posX + 'px', 'important');
             container.style.setProperty('top', posY + 'px', 'important');
@@ -1845,12 +1850,6 @@
             }
         }
     }
-
-    ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange', 'resize'].forEach(function(evt) {
-        window.addEventListener(evt, function() {
-            applyChatDragState();
-        });
-    });
 
     // ==========================================
     // 8. CORE SYSTEM UTILITIES BLOCKS
