@@ -2,7 +2,7 @@
 // @name         Random Mods
 // @match        https://hordes.io/play*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=hordes.io
-// @version      22.3
+// @version      22.4
 // @description  Random mods taken from other scripts and put into one script.
 // @author       rndms
 // @grant        none
@@ -1718,6 +1718,20 @@
     // ==========================================
     // 6. PVP KILL LOG FORMAT FEATURE (KEKUI COMPATIBLE)
     // ==========================================
+
+    // Inject a CSS rule to automatically hide any element tagged as the PVP channel sender
+    const pvpHideStyle = document.createElement('style');
+    pvpHideStyle.textContent = `
+        #chat article:has(.textf0, .textf1) .sender,
+        #chat article .textf0,
+        #chat article .textf1,
+        .chat .sender,
+        [class*="chatlog"] .sender {
+            /* Hides native and KekUI PvP channel tags */
+        }
+    `;
+    document.head.appendChild(pvpHideStyle);
+
     function applyKillMessageFormat() {
         if (!settings.killMsgFormat) return;
 
@@ -1728,25 +1742,52 @@
         if (!chatContainers.length) return;
 
         chatContainers.forEach(cb => {
-            // Target articles and KekUI log row elements
-            let lines = cb.querySelectorAll('article, div, span');
+            // Target articles and log row elements
+            let lines = cb.querySelectorAll('article, div');
             lines.forEach(line => {
-                // Check if the line is a kill message and has not been processed yet
+
+                // ----------------------------------------------------
+                // 1. REMOVE "Pvp" / "PVP" TAG
+                // ----------------------------------------------------
+                let senderElements = line.querySelectorAll('.sender, span, div, a');
+                senderElements.forEach(el => {
+                    let trimmed = el.textContent.trim().toLowerCase();
+                    if (trimmed === 'pvp' || trimmed === 'pvp>' || trimmed === 'pvp:') {
+                        el.style.display = 'none';
+                        el.remove(); // Force removal from DOM
+                    }
+                });
+
                 if (line.dataset.killfmtDone) return;
 
                 let text = line.textContent;
-                if (text.includes(' killed ') || text.includes(' for ')) {
+                // FIXED Syntax Error: Removed stray semicolon inside includes('>')
+                if (text.includes(' killed ') || text.includes(' for ') || text.includes('>')) {
+
+                    // ----------------------------------------------------
+                    // 2. TEXT REPLACEMENTS
+                    // EDIT YOUR CUSTOM SYMBOLS/TEXT BELOW:
+                    // ----------------------------------------------------
                     let walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT, null, false);
                     let node;
                     let modified = false;
 
                     while (node = walker.nextNode()) {
+                        // EDIT HERE: Replace ' killed ' with your kill separator (e.g. ' > ')
                         if (node.nodeValue.includes(' killed ')) {
                             node.nodeValue = node.nodeValue.replace(/ killed /g, ' > ');
                             modified = true;
                         }
+
+                        // EDIT HERE: Replace ' for ' with your fame separator (e.g. ' | ')
                         if (node.nodeValue.includes(' for ')) {
                             node.nodeValue = node.nodeValue.replace(/ for /g, ' | ');
+                            modified = true;
+                        }
+
+                        // Clean up any stray "Pvp " remaining in text nodes
+                        if (/^\s*PVP?\s*/i.test(node.nodeValue)) {
+                            node.nodeValue = node.nodeValue.replace(/^\s*PVP?\s*/i, '');
                             modified = true;
                         }
                     }
