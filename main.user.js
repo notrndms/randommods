@@ -2,7 +2,7 @@
 // @name         Random Mods
 // @match        https://hordes.io/play*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=hordes.io
-// @version      22.4
+// @version      22.5
 // @description  Random mods taken from other scripts and put into one script.
 // @author       rndms
 // @grant        none
@@ -25,9 +25,7 @@
         ccIndicator: true,
         classColors: true,
         yellChat: true,
-        killMsgFormat: true,
         ownBuffsOnly: false,
-        moveableChat: false,
         rareMobRadar: true,
         gearSetManager: true,
         autoOpen: true,
@@ -39,14 +37,12 @@
         removeBarTexts: false,
         hideMap: false,
         hideKekui: false,
+        hideElixir: false,
         partyTransition: true,
-        mentionHighlight: true,
-        chatPos: { x: null, y: null, xRatio: null, yRatio: null }
+        mentionHighlight: true
     };
 
-    if (settings.killMsgFormat === undefined) settings.killMsgFormat = true;
     if (settings.ownBuffsOnly === undefined) settings.ownBuffsOnly = false;
-    if (settings.moveableChat === undefined) settings.moveableChat = false;
     if (settings.rareMobRadar === undefined) settings.rareMobRadar = true;
     if (settings.gearSetManager === undefined) settings.gearSetManager = true;
     if (settings.autoOpen === undefined) settings.autoOpen = true;
@@ -58,9 +54,9 @@
     if (settings.removeBarTexts === undefined) settings.removeBarTexts = false;
     if (settings.hideMap === undefined) settings.hideMap = false;
     if (settings.hideKekui === undefined) settings.hideKekui = false;
+    if (settings.hideElixir === undefined) settings.hideElixir = false;
     if (settings.partyTransition === undefined) settings.partyTransition = true;
     if (settings.mentionHighlight === undefined) settings.mentionHighlight = true;
-    if (!settings.chatPos) settings.chatPos = { x: null, y: null, xRatio: null, yRatio: null };
 
     var syncNativeBuffsState = false;
 
@@ -90,7 +86,6 @@
 
         let debugTop;
         if (settings.hideMap) {
-            // Set to 78px to place cleanly right below the KekUI buttons without overlap
             debugTop = kekUIActive ? '78px' : '42px';
         } else {
             debugTop = kekUIActive ? '295px' : '257px';
@@ -115,6 +110,9 @@
         }
         if (settings.hideMap) {
             css += '#minimapcontainer { display: none !important; }\n';
+        }
+        if (settings.hideElixir) {
+            css += '#sysgem { display: none !important; }\n';
         }
         if (settings.chatRemake) {
             css += '.time.svelte-7c1tlw { display: none !important; }\n';
@@ -1502,9 +1500,7 @@
                 title: "Chat",
                 items: [
                     { key: "yellChat", id: "rndms-yell", label: "Global Chat", desc: "Changes Yell chat colour to the OG global chat colour" },
-                    { key: "moveableChat", id: "rndms-chatdrag", label: "Movable Chat", desc: "Able to drag the chat wherever you want (enable to edit position of the chat)" },
                     { key: "chatRemake", id: "rndms-chatremake", label: "Clean Chat", desc: "" },
-                    { key: "killMsgFormat", id: "rndms-killmsg", label: "Kill Msg Format", desc: "" },
                     { key: "mentionHighlight", id: "rndms-mention", label: "Mention Ping", desc: "Plays a ping sound when your name is mentioned (eg. @rndms)" }
                 ]
             },
@@ -1527,7 +1523,8 @@
                     { key: "removeUpgradeButton", id: "rndms-upgradebtn", label: "Hide Stash Upgrade", desc: "" },
                     { key: "removeBarTexts", id: "rndms-debugbar", label: "Clean Debug Bar", desc: "" },
                     { key: "hideMap", id: "rndms-hidemap", label: "Hide Map", desc: "" },
-                    { key: "hideKekui", id: "rndms-hidekekui", label: "Hide Kekui Buttons", desc: "Hides µUI, Lck, Buf, and Mo buttons and repositions debug bar" }
+                    { key: "hideKekui", id: "rndms-hidekekui", label: "Hide Kekui Buttons", desc: "Hides µUI, Lck, Buf, and Mo buttons and repositions debug bar" },
+                    { key: "hideElixir", id: "rndms-hideelixir", label: "Hide Elixir Button", desc: "" }
                 ]
             }
         ];
@@ -1580,7 +1577,6 @@
                     updateBuffsButtonState();
                 }
                 if (setting.key === 'gearSetManager') applyGearManagerVisibility();
-                if (setting.key === 'moveableChat') applyChatDragState();
             });
         });
 
@@ -1653,8 +1649,6 @@
 
             try {
                 applyBlackout();
-                applyKillMessageFormat();
-                applyChatDragState();
                 clickSpecificButton();
                 chatremake();
                 removeElements();
@@ -1716,217 +1710,7 @@
     }
 
     // ==========================================
-    // 6. PVP KILL LOG FORMAT FEATURE (KEKUI COMPATIBLE)
-    // ==========================================
-
-    // Inject a CSS rule to automatically hide any element tagged as the PVP channel sender
-    const pvpHideStyle = document.createElement('style');
-    pvpHideStyle.textContent = `
-        #chat article:has(.textf0, .textf1) .sender,
-        #chat article .textf0,
-        #chat article .textf1,
-        .chat .sender,
-        [class*="chatlog"] .sender {
-            /* Hides native and KekUI PvP channel tags */
-        }
-    `;
-    document.head.appendChild(pvpHideStyle);
-
-    function applyKillMessageFormat() {
-        if (!settings.killMsgFormat) return;
-
-        // Target both native Hordes chat and KekUI custom log panel containers
-        let chatContainers = document.querySelectorAll(
-            '#chat, .chat, [class*="chat-container"], .chatlog, .log.panel.scrollbar, [class*="chatlog"]'
-        );
-        if (!chatContainers.length) return;
-
-        chatContainers.forEach(cb => {
-            // Target articles and log row elements
-            let lines = cb.querySelectorAll('article, div');
-            lines.forEach(line => {
-
-                // ----------------------------------------------------
-                // 1. REMOVE "Pvp" / "PVP" TAG
-                // ----------------------------------------------------
-                let senderElements = line.querySelectorAll('.sender, span, div, a');
-                senderElements.forEach(el => {
-                    let trimmed = el.textContent.trim().toLowerCase();
-                    if (trimmed === 'pvp' || trimmed === 'pvp>' || trimmed === 'pvp:') {
-                        el.style.display = 'none';
-                        el.remove(); // Force removal from DOM
-                    }
-                });
-
-                if (line.dataset.killfmtDone) return;
-
-                let text = line.textContent;
-                // FIXED Syntax Error: Removed stray semicolon inside includes('>')
-                if (text.includes(' killed ') || text.includes(' for ') || text.includes('>')) {
-
-                    // ----------------------------------------------------
-                    // 2. TEXT REPLACEMENTS
-                    // EDIT YOUR CUSTOM SYMBOLS/TEXT BELOW:
-                    // ----------------------------------------------------
-                    let walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT, null, false);
-                    let node;
-                    let modified = false;
-
-                    while (node = walker.nextNode()) {
-                        // EDIT HERE: Replace ' killed ' with your kill separator (e.g. ' > ')
-                        if (node.nodeValue.includes(' killed ')) {
-                            node.nodeValue = node.nodeValue.replace(/ killed /g, ' > ');
-                            modified = true;
-                        }
-
-                        // EDIT HERE: Replace ' for ' with your fame separator (e.g. ' | ')
-                        if (node.nodeValue.includes(' for ')) {
-                            node.nodeValue = node.nodeValue.replace(/ for /g, ' | ');
-                            modified = true;
-                        }
-
-                        // Clean up any stray "Pvp " remaining in text nodes
-                        if (/^\s*PVP?\s*/i.test(node.nodeValue)) {
-                            node.nodeValue = node.nodeValue.replace(/^\s*PVP?\s*/i, '');
-                            modified = true;
-                        }
-                    }
-
-                    if (modified) {
-                        line.dataset.killfmtDone = "1";
-                    }
-                }
-            });
-        });
-    }
-
-    // ==========================================
-    // 7. LOCKABLE & PROPORTIONAL MOVEABLE CHAT
-    // ==========================================
-    function getChatContainer() {
-        const chatLog = document.getElementById('chat') || document.querySelector('.chat');
-        if (!chatLog) return null;
-
-        let cur = chatLog.parentElement;
-        for (let i = 0; i < 3 && cur && cur !== document.body; i++) {
-            if (cur.querySelector('.channelselect') || cur.querySelector('#chatinput') || cur.querySelector('.inputcontainer')) {
-                return cur;
-            }
-            cur = cur.parentElement;
-        }
-        return chatLog;
-    }
-
-    let isChatDragInitialized = false;
-
-    // Ensure context menus always render above moved UI elements
-    var contextMenuStyleRule = document.createElement('style');
-    contextMenuStyleRule.textContent = '.panel.context { z-index: 10000 !important; }';
-    document.head.appendChild(contextMenuStyleRule);
-
-    function applyChatDragState() {
-        const container = getChatContainer();
-        if (!container) return;
-
-        var cWidth = container.offsetWidth || 450;
-        var cHeight = container.offsetHeight || 250;
-
-        var posX, posY;
-
-        if (settings.chatPos.xRatio !== null && settings.chatPos.xRatio !== undefined) {
-            posX = Math.round(settings.chatPos.xRatio * window.innerWidth);
-            posY = Math.round(settings.chatPos.yRatio * window.innerHeight);
-        } else if (settings.chatPos.x !== null && settings.chatPos.y !== null) {
-            settings.chatPos.xRatio = settings.chatPos.x / window.innerWidth;
-            settings.chatPos.yRatio = settings.chatPos.y / window.innerHeight;
-            saveSettings();
-            posX = settings.chatPos.x;
-            posY = settings.chatPos.y;
-        }
-
-        if (posX !== undefined && posY !== undefined) {
-            var maxLeft = Math.max(0, window.innerWidth - cWidth);
-            var maxTop = Math.max(0, window.innerHeight - cHeight);
-            posX = Math.max(0, Math.min(posX, maxLeft));
-            posY = Math.max(0, Math.min(posY, maxTop));
-
-            container.style.setProperty('position', 'fixed', 'important');
-            container.style.setProperty('z-index', '100', 'important'); // Fixed z-index layering issue
-            container.style.setProperty('width', '450px', 'important');
-            container.style.setProperty('left', posX + 'px', 'important');
-            container.style.setProperty('top', posY + 'px', 'important');
-            container.style.setProperty('bottom', 'auto', 'important');
-            container.style.setProperty('right', 'auto', 'important');
-            container.style.setProperty('pointer-events', 'auto', 'important');
-        }
-
-        if (settings.moveableChat) {
-            container.style.setProperty('cursor', 'move', 'important');
-
-            if (!isChatDragInitialized) {
-                isChatDragInitialized = true;
-                var isDragging = false;
-                var offsetX = 0;
-                var offsetY = 0;
-
-                container.addEventListener('mousedown', function(e) {
-                    if (!settings.moveableChat) return;
-                    if (['INPUT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName) || e.target.closest('button') || e.target.closest('input')) {
-                        return;
-                    }
-                    isDragging = true;
-                    var rect = container.getBoundingClientRect();
-                    offsetX = e.clientX - rect.left;
-                    offsetY = e.clientY - rect.top;
-                    e.preventDefault();
-                });
-
-                document.addEventListener('mousemove', function(e) {
-                    if (!isDragging || !settings.moveableChat) return;
-                    var newX = e.clientX - offsetX;
-                    var newY = e.clientY - offsetY;
-
-                    var curWidth = container.offsetWidth || 450;
-                    var curHeight = container.offsetHeight || 250;
-                    var clampedX = Math.max(0, Math.min(newX, window.innerWidth - curWidth));
-                    var clampedY = Math.max(0, Math.min(newY, window.innerHeight - curHeight));
-
-                    container.style.setProperty('left', clampedX + 'px', 'important');
-                    container.style.setProperty('top', clampedY + 'px', 'important');
-                    container.style.setProperty('bottom', 'auto', 'important');
-                    container.style.setProperty('right', 'auto', 'important');
-
-                    settings.chatPos = {
-                        x: clampedX,
-                        y: clampedY,
-                        xRatio: clampedX / window.innerWidth,
-                        yRatio: clampedY / window.innerHeight
-                    };
-                    saveSettings();
-                });
-
-                document.addEventListener('mouseup', function() {
-                    isDragging = false;
-                });
-            }
-        } else {
-            container.style.removeProperty('cursor');
-
-            if (settings.chatPos.xRatio === null && settings.chatPos.x === null) {
-                container.style.removeProperty('position');
-                container.style.removeProperty('z-index');
-                container.style.removeProperty('left');
-                container.style.removeProperty('top');
-                container.style.removeProperty('bottom');
-                container.style.removeProperty('right');
-                container.style.removeProperty('width');
-                container.style.removeProperty('pointer-events');
-            }
-        }
-    }
-
-    // ==========================================
-    // 8. CORE SYSTEM UTILITIES BLOCKS
+    // 6. CORE SYSTEM UTILITIES BLOCKS
     // ==========================================
     function isFullscreen() {
         return document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
