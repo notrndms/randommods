@@ -2,7 +2,7 @@
 // @name         Random Mods
 // @match        https://hordes.io/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=hordes.io
-// @version      22.6
+// @version      23.7
 // @description  Random mods taken from other scripts and put into one script.
 // @author       rndms
 // @grant        none
@@ -18,7 +18,7 @@
     // 0. STATE MANAGEMENT & DATA STORAGE
     // ==========================================
 
-    const SETTINGS_KEY = 'rndms_mod_settings_v10';
+    const SETTINGS_KEY = 'rndms_mod_settings_v11';
     var settings = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {
         fullscreen: true,
         blackBorders: true,
@@ -40,9 +40,11 @@
         hideKekui: false,
         hideElixir: false,
         partyTransition: true,
-        mentionHighlight: true
+        mentionHighlight: true,
+        normalChatGmMsg: true
     };
 
+    if (settings.blackBorders === undefined) settings.blackBorders = true;
     if (settings.ownBuffsOnly === undefined) settings.ownBuffsOnly = false;
     if (settings.rareMobRadar === undefined) settings.rareMobRadar = true;
     if (settings.gearSetManager === undefined) settings.gearSetManager = true;
@@ -59,6 +61,7 @@
     if (settings.hideElixir === undefined) settings.hideElixir = false;
     if (settings.partyTransition === undefined) settings.partyTransition = true;
     if (settings.mentionHighlight === undefined) settings.mentionHighlight = true;
+    if (settings.normalChatGmMsg === undefined) settings.normalChatGmMsg = true;
 
     var syncNativeBuffsState = false;
 
@@ -68,6 +71,9 @@
     }
 
     // Dynamic Style Engine for Non-Destructive Hiding & Position Adapting
+    var borderStyleRule = document.createElement('style');
+    document.head.appendChild(borderStyleRule);
+
     var removalStyleRule = document.createElement('style');
     document.head.appendChild(removalStyleRule);
 
@@ -117,7 +123,11 @@
             css += '#sysgem { display: none !important; }\n';
         }
         if (settings.chatRemake) {
-            css += '.time, span.time, #chat .time, .chatlog .time, .time.svelte-7c1tlw { display: none !important; }\n';
+            css += '#chat .time, .chatlog .time { display: none !important; }\n';
+        }
+        if (settings.normalChatGmMsg) {
+            css += '#chat article:has(.textGM) { display: block !important; }\n';
+            css += '.chatlog .line:has(.textGM) { display: none !important; }\n';
         }
         removalStyleRule.textContent = css;
 
@@ -1310,58 +1320,66 @@
     }
 
     function mentionHighlightLine(line, playSound) {
-        if (!settings.mentionHighlight) return;
+        if (!settings.mentionHighlight || !line || !line.isConnected) return;
 
         const names = mentionGetPlayerNames();
         if (!names.length) return;
 
-        const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT, null);
-        const textNodes = [];
-        while (walker.nextNode()) textNodes.push(walker.currentNode);
+        requestAnimationFrame(() => {
+            if (!line.isConnected) return;
+            try {
+                const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT, null);
+                const textNodes = [];
+                while (walker.nextNode()) textNodes.push(walker.currentNode);
 
-        for (const node of textNodes) {
-            if (node.parentElement && node.parentElement.classList.contains(HIGHLIGHT_CLASS)) continue;
+                for (const node of textNodes) {
+                    if (node.parentElement && node.parentElement.classList.contains(HIGHLIGHT_CLASS)) continue;
 
-            let text = node.nodeValue;
-            let changed = false;
-            const frag = document.createDocumentFragment();
+                    let text = node.nodeValue;
+                    if (!text) continue;
+                    let changed = false;
+                    const frag = document.createDocumentFragment();
 
-            while (text.length) {
-                let earliest = Infinity;
-                let matchedName = null;
-                let matchedText = null;
+                    while (text.length) {
+                        let earliest = Infinity;
+                        let matchedName = null;
+                        let matchedText = null;
 
-                for (const name of names) {
-                    const regex = new RegExp(`@${mentionEscapeRegExp(name)}(?=$|\\s|[!?,.:;()\\[\\]{}"'<>])`);
-                    const match = regex.exec(text);
-                    if (match && match.index < earliest) {
-                        earliest = match.index;
-                        matchedName = name;
-                        matchedText = match[0];
+                        for (const name of names) {
+                            const regex = new RegExp(`@${mentionEscapeRegExp(name)}(?=$|\\s|[!?,.:;()\\[\\]{}"'<>])`);
+                            const match = regex.exec(text);
+                            if (match && match.index < earliest) {
+                                earliest = match.index;
+                                matchedName = name;
+                                matchedText = match[0];
+                            }
+                        }
+
+                        if (!matchedName) {
+                            frag.appendChild(document.createTextNode(text));
+                            break;
+                        }
+
+                        if (earliest > 0)
+                            frag.appendChild(document.createTextNode(text.slice(0, earliest)));
+
+                        const span = document.createElement("span");
+                        span.className = HIGHLIGHT_CLASS;
+                        span.textContent = matchedText;
+                        frag.appendChild(span);
+
+                        if (playSound) mentionPlayPing();
+
+                        text = text.slice(earliest + matchedText.length);
+                        changed = true;
+                    }
+
+                    if (changed && node.parentNode) {
+                        node.parentNode.replaceChild(frag, node);
                     }
                 }
-
-                if (!matchedName) {
-                    frag.appendChild(document.createTextNode(text));
-                    break;
-                }
-
-                if (earliest > 0)
-                    frag.appendChild(document.createTextNode(text.slice(0, earliest)));
-
-                const span = document.createElement("span");
-                span.className = HIGHLIGHT_CLASS;
-                span.textContent = matchedText;
-                frag.appendChild(span);
-
-                if (playSound) mentionPlayPing();
-
-                text = text.slice(earliest + matchedText.length);
-                changed = true;
-            }
-
-            if (changed) node.replaceWith(frag);
-        }
+            } catch (err) {}
+        });
     }
 
     function mentionHighlighter() {
@@ -1439,17 +1457,22 @@
 
     function executeNativeBuffClick(settingsPanel) {
         try {
+            if (!settingsPanel) return;
             const container = settingsPanel?.children?.[0]?.children?.[1]?.children?.[0];
-            if (!container) return;
-            container.children?.[0]?.children?.[0]?.click();
+            if (!container || !container.children?.[0]?.children?.[0]) return;
+
+            container.children[0].children[0].click();
+
             const buffSetting = container.children?.[1]?.children?.[1]?.children?.[61];
             if (buffSetting) buffSetting.click();
+
             const cog = document.querySelector("#syscog");
             if (cog) cog.click();
         } catch (err) {
             console.error("Buff Toggler Error:", err);
+        } finally {
+            syncNativeBuffsState = false;
         }
-        syncNativeBuffsState = false;
     }
 
     function addRndmsSettings() {
@@ -1524,7 +1547,8 @@
                     { key: "yellChat", id: "rndms-yell", label: "Global Chat", desc: "Changes Yell chat colour to the OG global chat colour" },
                     { key: "chatRemake", id: "rndms-chatremake", label: "Clean Chat", desc: "Hides timestamps and simplifies chat arrows" },
                     { key: "cleanKillMsg", id: "rndms-cleankill", label: "Clean Kill Msg", desc: "Simplifies PvP kill text ('killed' -> '>', 'for' -> '|')" },
-                    { key: "mentionHighlight", id: "rndms-mention", label: "Mention Ping", desc: "Plays a ping sound when your name is mentioned (eg. @rndms)" }
+                    { key: "mentionHighlight", id: "rndms-mention", label: "Mention Ping", desc: "Plays a ping sound when your name is mentioned (eg. @rndms)" },
+                    { key: "normalChatGmMsg", id: "rndms-gmmsg", label: "Normal Chat GM Msg", desc: "Forces GM messages in main chat and hides them from KEK UI chat log" }
                 ]
             },
             {
@@ -1654,7 +1678,7 @@
         classColorsStyleRule.textContent = clStr;
         document.head.appendChild(classColorsStyleRule);
 
-        yellChatStyleRule.textContent = '.textyell { color: #FFCB9D; } .btn.textyell { color: #FFCB9D; }';
+        yellChatStyleRule.textContent = '.textyell { color: #FFCB9D !important; } .btn.textyell { color: #FFCB9D !important; }';
         document.head.appendChild(yellChatStyleRule);
 
         borderStyleRule.disabled = !settings.blackBorders;
@@ -1756,6 +1780,7 @@
 
     function applyBlackout() {
         if (!settings.blackBorders) return;
+
         var slots = document.querySelectorAll('.border.slot');
         slots.forEach(function(slot) {
             var changed = false;
