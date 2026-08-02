@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Random Mods
-// @match        https://hordes.io/play*
+// @match        https://hordes.io/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=hordes.io
-// @version      22.5
+// @version      22.6
 // @description  Random mods taken from other scripts and put into one script.
 // @author       rndms
 // @grant        none
@@ -30,6 +30,7 @@
         gearSetManager: true,
         autoOpen: true,
         chatRemake: false,
+        cleanKillMsg: false,
         removeLevelBar: false,
         removeEntityPanel: false,
         removeInventoryFilter: false,
@@ -47,6 +48,7 @@
     if (settings.gearSetManager === undefined) settings.gearSetManager = true;
     if (settings.autoOpen === undefined) settings.autoOpen = true;
     if (settings.chatRemake === undefined) settings.chatRemake = false;
+    if (settings.cleanKillMsg === undefined) settings.cleanKillMsg = false;
     if (settings.removeLevelBar === undefined) settings.removeLevelBar = false;
     if (settings.removeEntityPanel === undefined) settings.removeEntityPanel = false;
     if (settings.removeInventoryFilter === undefined) settings.removeInventoryFilter = false;
@@ -115,7 +117,7 @@
             css += '#sysgem { display: none !important; }\n';
         }
         if (settings.chatRemake) {
-            css += '.time.svelte-7c1tlw { display: none !important; }\n';
+            css += '.time, span.time, #chat .time, .chatlog .time, .time.svelte-7c1tlw { display: none !important; }\n';
         }
         removalStyleRule.textContent = css;
 
@@ -1217,6 +1219,26 @@
         });
     }
 
+    function cleanKillMsg() {
+        if (!settings.cleanKillMsg) return;
+
+        const fameElements = document.querySelectorAll('.textfame');
+        fameElements.forEach(parent => {
+            if (parent.dataset.pvpProcessed) return;
+            parent.dataset.pvpProcessed = "1";
+            const walker = document.createTreeWalker(parent, NodeFilter.SHOW_TEXT, null);
+            let node;
+            while ((node = walker.nextNode())) {
+                if (node.nodeValue.includes('killed')) {
+                    node.nodeValue = node.nodeValue.replace(/\bkilled\b/g, '>');
+                }
+                if (node.nodeValue.includes('for')) {
+                    node.nodeValue = node.nodeValue.replace(/\bfor\b/g, '|');
+                }
+            }
+        });
+    }
+
     function partyEntranceTransition() {
         if (!settings.partyTransition) return;
 
@@ -1500,7 +1522,8 @@
                 title: "Chat",
                 items: [
                     { key: "yellChat", id: "rndms-yell", label: "Global Chat", desc: "Changes Yell chat colour to the OG global chat colour" },
-                    { key: "chatRemake", id: "rndms-chatremake", label: "Clean Chat", desc: "" },
+                    { key: "chatRemake", id: "rndms-chatremake", label: "Clean Chat", desc: "Hides timestamps and simplifies chat arrows" },
+                    { key: "cleanKillMsg", id: "rndms-cleankill", label: "Clean Kill Msg", desc: "Simplifies PvP kill text ('killed' -> '>', 'for' -> '|')" },
                     { key: "mentionHighlight", id: "rndms-mention", label: "Mention Ping", desc: "Plays a ping sound when your name is mentioned (eg. @rndms)" }
                 ]
             },
@@ -1651,6 +1674,7 @@
                 applyBlackout();
                 clickSpecificButton();
                 chatremake();
+                cleanKillMsg();
                 removeElements();
                 partyEntranceTransition();
                 mentionHighlighter();
