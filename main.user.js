@@ -1,14 +1,14 @@
 // ==UserScript==
-// @name         Random Mods
-// @match        https://hordes.io/*
-// @icon         https://www.google.com/s2/favicons?sz=64&domain=hordes.io
-// @version      23.7
-// @description  Random mods taken from other scripts and put into one script.
-// @author       rndms
-// @grant        none
-// @run-at       document-start
-// @updateURL    https://raw.githubusercontent.com/notrndms/randommods/main/main.user.js
-// @downloadURL  https://raw.githubusercontent.com/notrndms/randommods/main/main.user.js
+// @name          Random Mods
+// @match         https://hordes.io/play*
+// @icon          https://www.google.com/s2/favicons?sz=64&domain=hordes.io
+// @version       23.8
+// @description   Random mods taken from other scripts and put into one script.
+// @author        rndms
+// @grant         none
+// @run-at        document-start
+// @updateURL     https://raw.githubusercontent.com/notrndms/randommods/main/main.user.js
+// @downloadURL   https://raw.githubusercontent.com/notrndms/randommods/main/main.user.js
 // ==/UserScript==
 
 (async function() {
@@ -1475,11 +1475,73 @@
         }
     }
 
+    function filterSettingsMenu(query) {
+        const container = document.getElementById('rndms-settings-panel');
+        if (!container) return;
+
+        const term = query.toLowerCase().trim();
+        const sectionBlocks = container.querySelectorAll('.rndms-section-block');
+
+        sectionBlocks.forEach(section => {
+            let hasVisibleItems = false;
+            const labels = section.querySelectorAll('.rndms-label-container');
+
+            labels.forEach(lbl => {
+                const titleText = lbl.querySelector('span')?.textContent.toLowerCase() || '';
+                const descText = lbl.querySelector('.rndms-desc')?.textContent.toLowerCase() || '';
+                const checkbox = lbl.nextElementSibling;
+
+                if (titleText.includes(term) || descText.includes(term)) {
+                    lbl.style.display = 'flex';
+                    if (checkbox) checkbox.style.display = 'block';
+                    hasVisibleItems = true;
+                } else {
+                    lbl.style.display = 'none';
+                    if (checkbox) checkbox.style.display = 'none';
+                }
+            });
+
+            section.style.display = hasVisibleItems ? 'block' : 'none';
+        });
+    }
+
     function addRndmsSettings() {
         if (!document.getElementById('rndms-desc-style')) {
             const style = document.createElement('style');
             style.id = 'rndms-desc-style';
             style.textContent = `
+                .rndms-header-container {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 8px;
+                }
+                .rndms-header-container h3 {
+                    margin: 0;
+                }
+                .rndms-search-input {
+                    background: rgba(0, 0, 0, 0.4) !important;
+                    border: none !important;
+                    outline: none !important;
+                    box-shadow: none !important;
+                    border-radius: 3px;
+                    color: #fff;
+                    padding: 3px 8px;
+                    font-size: 12px;
+                    font-family: inherit;
+                    width: 140px;
+                    transform: none !important;
+                    transition: none !important;
+                }
+                .rndms-search-input:focus,
+                .rndms-search-input:hover,
+                .rndms-search-input:active {
+                    border: none !important;
+                    outline: none !important;
+                    box-shadow: none !important;
+                    transform: none !important;
+                    background: rgba(0, 0, 0, 0.6) !important;
+                }
                 .rndms-label-container {
                     display: flex;
                     flex-direction: column;
@@ -1538,7 +1600,7 @@
                     { key: "fullscreen", id: "rndms-fullscreen", label: "Auto Fullscreen", desc: "Automatically goes into fullscreen and mutes fullscreen notification" },
                     { key: "rareMobRadar", id: "rndms-radar", label: "Rare Mob Radar", desc: "Gives a notification through chat and plays a sound when a rare mob has been found" },
                     { key: "gearSetManager", id: "rndms-gearset", label: "Gear Set Manager", desc: "Gear presets (access through character sheet)" },
-                    { key: "autoOpen", id: "rndms-autoopen", label: "Auto Open NPCs", desc: "" }
+                    { key: "autoOpen", id: "rndms-autoopen", label: "Auto Open NPCs", desc: "Skips npc dialouge" }
                 ]
             },
             {
@@ -1546,9 +1608,7 @@
                 items: [
                     { key: "yellChat", id: "rndms-yell", label: "Global Chat", desc: "Changes Yell chat colour to the OG global chat colour" },
                     { key: "chatRemake", id: "rndms-chatremake", label: "Clean Chat", desc: "Hides timestamps and simplifies chat arrows" },
-                    { key: "cleanKillMsg", id: "rndms-cleankill", label: "Clean Kill Msg", desc: "Simplifies PvP kill text ('killed' -> '>', 'for' -> '|')" },
                     { key: "mentionHighlight", id: "rndms-mention", label: "Mention Ping", desc: "Plays a ping sound when your name is mentioned (eg. @rndms)" },
-                    { key: "normalChatGmMsg", id: "rndms-gmmsg", label: "Normal Chat GM Msg", desc: "Forces GM messages in main chat and hides them from KEK UI chat log" }
                 ]
             },
             {
@@ -1564,43 +1624,68 @@
                     { key: "classColors", id: "rndms-classcolors", label: "Class Colours", desc: "" },
                     { key: "blackBorders", id: "rndms-borders", label: "Black Borders", desc: "" },
                     { key: "partyTransition", id: "rndms-partyanim", label: "Party Animation", desc: "" },
-                    { key: "removeLevelBar", id: "rndms-levelbar", label: "Hide XP Bar", desc: "" },
-                    { key: "removeEntityPanel", id: "rndms-entitypanel", label: "Hide Entity Panel", desc: "" },
                     { key: "removeInventoryFilter", id: "rndms-invfilter", label: "Hide Inv Filter", desc: "" },
                     { key: "removeUpgradeButton", id: "rndms-upgradebtn", label: "Hide Stash Upgrade", desc: "" },
-                    { key: "removeBarTexts", id: "rndms-debugbar", label: "Clean Debug Bar", desc: "" },
-                    { key: "hideMap", id: "rndms-hidemap", label: "Hide Map", desc: "" },
-                    { key: "hideKekui", id: "rndms-hidekekui", label: "Hide Kekui Buttons", desc: "Hides µUI, Lck, Buf, and Mo buttons and repositions debug bar" },
-                    { key: "hideElixir", id: "rndms-hideelixir", label: "Hide Elixir Button", desc: "" }
                 ]
-            }
+            },
+            {
+                title: "Minimal UI",
+                items: [
+                    { key: "hideMap", id: "rndms-hidemap", label: "Hide Map", desc: "" },
+                    { key: "hideElixir", id: "rndms-hideelixir", label: "Hide Elixir Button", desc: "" },
+                    { key: "removeBarTexts", id: "rndms-debugbar", label: "Clean Debug Bar", desc: "" },
+                    { key: "removeLevelBar", id: "rndms-levelbar", label: "Hide XP Bar", desc: "" },
+                    { key: "removeEntityPanel", id: "rndms-entitypanel", label: "Hide Entity Panel", desc: "Hides entity panel that appears on the bottom right when hovering on a entity" },
+                ]
+            },
+            {
+                title: "Kek UI",
+                items: [
+                    { key: "hideKekui", id: "rndms-hidekekui", label: "Hide Kekui Buttons", desc: "Hides µUI, Lock, Buff, and Mouseover buttons" },
+                    { key: "cleanKillMsg", id: "rndms-cleankill", label: "Clean Kekui Killmsg", desc: "Simplifies PvP kill text ('killed' -> '>', 'for' -> '|')" },
+                    { key: "normalChatGmMsg", id: "rndms-gmmsg", label: "Move GM Msg", desc: "Forces GM messages in main chat and hides them from KEK UI chat log" }
+                ]
+            },
         ];
 
         content.innerHTML = `
-            <h3 class="textprimary">Random Mods settings</h3>
+            <div class="rndms-header-container">
+                <h3 class="textprimary">Random Mods settings</h3>
+                <input type="text" id="rndms-search-bar" class="rndms-search-input" placeholder="Search...">
+            </div>
 
             <div style="display: flex; flex-direction: column; gap: 8px; padding-bottom: 20px;">
                 ${sections.map(section => `
-                    <div style="font-size: 11px; font-weight: bold; color: rgba(255,255,255,0.7); text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 3px; margin-top: 8px;">
-                        ${section.title}
-                    </div>
-                    <div class="settings svelte-13nnce4" style="flex:0;">
-                        ${section.items.map(setting => `
-                            <div class="rndms-label-container">
-                                <span>${setting.label}</span>
-                                ${setting.desc ? `<div class="rndms-desc">${setting.desc}</div>` : ''}
-                            </div>
-                            <div
-                                class="btn checkbox ${settings[setting.key] ? 'active' : ''}"
-                                id="${setting.id}">
-                            </div>
-                        `).join('')}
+                    <div class="rndms-section-block">
+                        <div style="font-size: 11px; font-weight: bold; color: rgba(255,255,255,0.7); text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 3px; margin-top: 8px;">
+                            ${section.title}
+                        </div>
+                        <div class="settings svelte-13nnce4" style="flex:0;">
+                            ${section.items.map(setting => `
+                                <div class="rndms-label-container">
+                                    <span>${setting.label}</span>
+                                    ${setting.desc ? `<div class="rndms-desc">${setting.desc}</div>` : ''}
+                                </div>
+                                <div
+                                    class="btn checkbox ${settings[setting.key] ? 'active' : ''}"
+                                    id="${setting.id}">
+                                </div>
+                            `).join('')}
+                        </div>
                     </div>
                 `).join('')}
             </div>
         `;
 
         menu.appendChild(content);
+
+        // Search listener
+        const searchBar = document.getElementById('rndms-search-bar');
+        if (searchBar) {
+            searchBar.addEventListener('input', (e) => {
+                filterSettingsMenu(e.target.value);
+            });
+        }
 
         // Checkbox listeners
         const allSettingItems = sections.flatMap(s => s.items);
