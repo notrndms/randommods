@@ -1,14 +1,14 @@
 // ==UserScript==
-// @name          Random Mods
-// @match         https://hordes.io/play*
-// @icon          https://www.google.com/s2/favicons?sz=64&domain=hordes.io
-// @version       23.8
-// @description   Random mods taken from other scripts and put into one script.
-// @author        rndms
-// @grant         none
-// @run-at        document-start
-// @updateURL     https://raw.githubusercontent.com/notrndms/randommods/main/main.user.js
-// @downloadURL   https://raw.githubusercontent.com/notrndms/randommods/main/main.user.js
+// @name         Random Mods Temp
+// @match        https://hordes.io/play*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=hordes.io
+// @version      23.9
+// @description  Random mods taken from other scripts and put into one script.
+// @author       rndms
+// @grant        none
+// @run-at       document-start
+// @updateURL    https://raw.githubusercontent.com/notrndms/randommods/main/main.user.js
+// @downloadURL  https://raw.githubusercontent.com/notrndms/randommods/main/main.user.js
 // ==/UserScript==
 
 (async function() {
@@ -41,7 +41,8 @@
         hideElixir: false,
         partyTransition: true,
         mentionHighlight: true,
-        normalChatGmMsg: true
+        normalChatGmMsg: true,
+        warStatsBtn: true
     };
 
     if (settings.blackBorders === undefined) settings.blackBorders = true;
@@ -62,6 +63,7 @@
     if (settings.partyTransition === undefined) settings.partyTransition = true;
     if (settings.mentionHighlight === undefined) settings.mentionHighlight = true;
     if (settings.normalChatGmMsg === undefined) settings.normalChatGmMsg = true;
+    if (settings.warStatsBtn === undefined) settings.warStatsBtn = true;
 
     var syncNativeBuffsState = false;
 
@@ -1126,8 +1128,76 @@
     }
 
     // ==========================================
-    // 4. INTEGRATED BELL ADD-ON MODULES
+    // 4. INTEGRATED BELL ADD-ON MODULES & WAR STATS BUTTON
     // ==========================================
+
+    function toggleWarStats() {
+        // 1. If open, close it
+        const windows = document.querySelectorAll('.window, .window-pos, .panel-black');
+        let warWindow = null;
+        for (const win of windows) {
+            if (win.textContent && win.textContent.toLowerCase().includes('war statistics')) {
+                warWindow = win;
+                break;
+            }
+        }
+
+        if (warWindow) {
+            const closeBtn = warWindow.querySelector('.btn.close, .close, .textred, svg');
+            if (closeBtn) {
+                closeBtn.click();
+            } else {
+                warWindow.remove();
+            }
+            return;
+        }
+
+        // 2. Dispatch native keypress ('v' is default War Stats key)
+        const keyOptions = { key: 'v', code: 'KeyV', keyCode: 86, which: 86, bubbles: true, cancelable: true };
+        window.dispatchEvent(new KeyboardEvent('keydown', keyOptions));
+        document.dispatchEvent(new KeyboardEvent('keydown', keyOptions));
+
+        // 3. Fallback: Click native war bar UI elements if keypress is intercepted
+        const topWarBar = document.querySelector('.war, [class*="war"], [class*="pvp"]');
+        if (topWarBar && typeof topWarBar.click === 'function') {
+            topWarBar.click();
+        }
+    }
+
+    function injectWarStatsButton() {
+        if (!settings.warStatsBtn) {
+            const existingBtn = document.getElementById('rndms-war-stats-btn');
+            if (existingBtn) existingBtn.remove();
+            return;
+        }
+
+        const target = document.getElementById('rndms-buffs-toggle-btn') ||
+                       document.querySelector('.btn.border.black.textcyan') ||
+                       document.querySelector('.textcyan');
+        if (!target) return;
+
+        let warBtn = document.getElementById('rndms-war-stats-btn');
+        if (!warBtn) {
+            warBtn = document.createElement('div');
+            warBtn.id = 'rndms-war-stats-btn';
+            warBtn.className = 'btn border black textcyan';
+            warBtn.style.cursor = 'pointer';
+            warBtn.style.marginLeft = '2px';
+            warBtn.style.display = 'inline-flex';
+            warBtn.style.alignItems = 'center';
+            warBtn.style.justifyContent = 'center';
+            warBtn.title = 'War Statistics';
+            warBtn.textContent = '⚔️';
+
+            warBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                toggleWarStats();
+            });
+
+            target.insertAdjacentElement('afterend', warBtn);
+        }
+    }
 
     function updateBuffsButtonState() {
         const buffBtn = document.getElementById('rndms-buffs-toggle-btn');
@@ -1600,7 +1670,8 @@
                     { key: "fullscreen", id: "rndms-fullscreen", label: "Auto Fullscreen", desc: "Automatically goes into fullscreen and mutes fullscreen notification" },
                     { key: "rareMobRadar", id: "rndms-radar", label: "Rare Mob Radar", desc: "Gives a notification through chat and plays a sound when a rare mob has been found" },
                     { key: "gearSetManager", id: "rndms-gearset", label: "Gear Set Manager", desc: "Gear presets (access through character sheet)" },
-                    { key: "autoOpen", id: "rndms-autoopen", label: "Auto Open NPCs", desc: "Skips npc dialouge" }
+                    { key: "autoOpen", id: "rndms-autoopen", label: "Auto Open NPCs", desc: "Skips npc dialouge" },
+                    { key: "warStatsBtn", id: "rndms-warstatsbtn", label: "War Stats Button", desc: "Adds a shortcut button on top right to toggle War Statistics window" }
                 ]
             },
             {
@@ -1657,7 +1728,7 @@
             <div style="display: flex; flex-direction: column; gap: 8px; padding-bottom: 20px;">
                 ${sections.map(section => `
                     <div class="rndms-section-block">
-                        <div style="font-size: 11px; font-weight: bold; color: rgba(255,255,255,0.7); text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 3px; margin-top: 8px;">
+                        <div style="font-size: 11px; font-weight: bold; color: rgba(255,255,255,0.7); text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 4px; margin-top: 12px; margin-bottom: 8px;">
                             ${section.title}
                         </div>
                         <div class="settings svelte-13nnce4" style="flex:0;">
@@ -1709,6 +1780,7 @@
                     updateBuffsButtonState();
                 }
                 if (setting.key === 'gearSetManager') applyGearManagerVisibility();
+                if (setting.key === 'warStatsBtn') injectWarStatsButton();
             });
         });
 
@@ -1789,6 +1861,7 @@
                 mentionHighlighter();
                 addRndmsSettings();
                 injectBuffsButton();
+                injectWarStatsButton();
                 updateRemovalStyles();
 
                 let equipSlots = document.getElementById("equipslots");
