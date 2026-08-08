@@ -2,7 +2,7 @@
 // @name         Random Mods
 // @match        https://hordes.io/play*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=hordes.io
-// @version      24.0
+// @version      24.1
 // @description  Random mods taken from other scripts and put into one script.
 // @author       rndms
 // @grant        none
@@ -119,7 +119,8 @@
             css += '.bar.btn.black.grey.svelte-nijy6x .textyellow, .bar.btn.black.grey.svelte-nijy6x .textorange, .bar.btn.black.grey.svelte-nijy6x .textpurp { display: none !important; }\n';
         }
         if (settings.hideMap) {
-            css += '#minimapcontainer { display: none !important; }\n';
+            // Target the map canvas/element instead of hiding the whole container
+            css += '#minimapcontainer canvas, #minimapcontainer #minimap, #minimap { display: none !important; }\n';
         }
         if (settings.hideElixir) {
             css += '#sysgem { display: none !important; }\n';
@@ -1132,22 +1133,20 @@
     // ==========================================
 
     function findNativeWarBar() {
+        // Search candidates without restricting to visible offset dimensions
         const candidates = document.querySelectorAll('[class*="war"], [class*="War"], .war, .warbar');
         for (const el of candidates) {
-            if (el.id === 'rndms-war-stats-btn' || el.closest('#rndms-war-stats-btn') || el.closest('.window')) continue;
-            if (el.offsetWidth > 0 && el.offsetHeight > 0) return el;
+            if (el.id === 'rndms-war-stats-btn' || el.closest('#rndms-war-stats-btn') || el.closest('.window') || el.closest('.window-pos')) continue;
+            return el;
         }
 
-        const topElements = document.querySelectorAll('div, span, header');
+        const topElements = document.querySelectorAll('div, span, header, p');
         for (const el of topElements) {
-            if (el.id === 'rndms-war-stats-btn' || el.closest('#rndms-war-stats-btn') || el.closest('.window')) continue;
+            if (el.id === 'rndms-war-stats-btn' || el.closest('#rndms-war-stats-btn') || el.closest('.window') || el.closest('.window-pos')) continue;
 
-            const rect = el.getBoundingClientRect();
-            if (rect.top >= 0 && rect.top < 120 && rect.height > 10 && rect.width > 40) {
-                const txt = el.textContent || '';
-                if (txt.includes('War') || txt.includes('Vanguard') || txt.includes('Bloodlust')) {
-                    return el;
-                }
+            const txt = el.textContent || '';
+            if (txt.includes('Vanguard') || txt.includes('Bloodlust') || (txt.includes('War') && txt.length < 30)) {
+                return el;
             }
         }
         return null;
@@ -1165,27 +1164,9 @@
     }
 
     function toggleWarStats() {
-        const windows = document.querySelectorAll('.window, .window-pos, .panel-black');
-        let warWindow = null;
-        for (const win of windows) {
-            if (win.textContent && win.textContent.toLowerCase().includes('war statistics')) {
-                warWindow = win;
-                break;
-            }
-        }
-
-        if (warWindow) {
-            const closeBtn = warWindow.querySelector('.btn.close, .close, .textred, svg');
-            if (closeBtn) {
-                triggerFullClick(closeBtn);
-            } else {
-                warWindow.remove();
-            }
-            return;
-        }
-
         const nativeWarBar = findNativeWarBar();
         if (nativeWarBar) {
+            // Trigger native Svelte toggle (handles both opening & closing seamlessly)
             triggerFullClick(nativeWarBar);
         }
     }
@@ -1528,7 +1509,6 @@
     // 5. NATIVE SETTINGS MENU INTEGRATION
     // ==========================================
 
-    var borderStyleRule = document.createElement('style');
     var ccStyleRule = document.createElement('style');
     var classColorsStyleRule = document.createElement('style');
     var yellChatStyleRule = document.createElement('style');
