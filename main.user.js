@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Random Mods
+// @name         Random Mods 
 // @match        https://hordes.io/play*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=hordes.io
-// @version      24.1
+// @version      24.2
 // @description  Random mods taken from other scripts and put into one script.
 // @author       rndms
 // @grant        none
@@ -119,8 +119,11 @@
             css += '.bar.btn.black.grey.svelte-nijy6x .textyellow, .bar.btn.black.grey.svelte-nijy6x .textorange, .bar.btn.black.grey.svelte-nijy6x .textpurp { display: none !important; }\n';
         }
         if (settings.hideMap) {
-            // Target the map canvas/element instead of hiding the whole container
             css += '#minimapcontainer canvas, #minimapcontainer #minimap, #minimap { display: none !important; }\n';
+        }
+        if (settings.warStatsBtn) {
+            // Hide the native top-right war button so only custom button shows
+            css += 'img.warIcon, .warIcon { display: none !important; }\n';
         }
         if (settings.hideElixir) {
             css += '#sysgem { display: none !important; }\n';
@@ -1133,7 +1136,10 @@
     // ==========================================
 
     function findNativeWarBar() {
-        // Search candidates without restricting to visible offset dimensions
+        // Direct target for native war icon
+        const warIcon = document.querySelector('img.warIcon, .warIcon');
+        if (warIcon) return warIcon;
+
         const candidates = document.querySelectorAll('[class*="war"], [class*="War"], .war, .warbar');
         for (const el of candidates) {
             if (el.id === 'rndms-war-stats-btn' || el.closest('#rndms-war-stats-btn') || el.closest('.window') || el.closest('.window-pos')) continue;
@@ -1166,7 +1172,6 @@
     function toggleWarStats() {
         const nativeWarBar = findNativeWarBar();
         if (nativeWarBar) {
-            // Trigger native Svelte toggle (handles both opening & closing seamlessly)
             triggerFullClick(nativeWarBar);
         }
     }
