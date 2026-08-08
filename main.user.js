@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Random Mods Temp
+// @name         Random Mods
 // @match        https://hordes.io/play*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=hordes.io
-// @version      23.9
+// @version      24.0
 // @description  Random mods taken from other scripts and put into one script.
 // @author       rndms
 // @grant        none
@@ -1131,8 +1131,40 @@
     // 4. INTEGRATED BELL ADD-ON MODULES & WAR STATS BUTTON
     // ==========================================
 
+    function findNativeWarBar() {
+        const candidates = document.querySelectorAll('[class*="war"], [class*="War"], .war, .warbar');
+        for (const el of candidates) {
+            if (el.id === 'rndms-war-stats-btn' || el.closest('#rndms-war-stats-btn') || el.closest('.window')) continue;
+            if (el.offsetWidth > 0 && el.offsetHeight > 0) return el;
+        }
+
+        const topElements = document.querySelectorAll('div, span, header');
+        for (const el of topElements) {
+            if (el.id === 'rndms-war-stats-btn' || el.closest('#rndms-war-stats-btn') || el.closest('.window')) continue;
+
+            const rect = el.getBoundingClientRect();
+            if (rect.top >= 0 && rect.top < 120 && rect.height > 10 && rect.width > 40) {
+                const txt = el.textContent || '';
+                if (txt.includes('War') || txt.includes('Vanguard') || txt.includes('Bloodlust')) {
+                    return el;
+                }
+            }
+        }
+        return null;
+    }
+
+    function triggerFullClick(el) {
+        if (!el) return;
+        ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(evtName => {
+            el.dispatchEvent(new MouseEvent(evtName, {
+                bubbles: true,
+                cancelable: true,
+                view: window
+            }));
+        });
+    }
+
     function toggleWarStats() {
-        // 1. If open, close it
         const windows = document.querySelectorAll('.window, .window-pos, .panel-black');
         let warWindow = null;
         for (const win of windows) {
@@ -1145,22 +1177,16 @@
         if (warWindow) {
             const closeBtn = warWindow.querySelector('.btn.close, .close, .textred, svg');
             if (closeBtn) {
-                closeBtn.click();
+                triggerFullClick(closeBtn);
             } else {
                 warWindow.remove();
             }
             return;
         }
 
-        // 2. Dispatch native keypress ('v' is default War Stats key)
-        const keyOptions = { key: 'v', code: 'KeyV', keyCode: 86, which: 86, bubbles: true, cancelable: true };
-        window.dispatchEvent(new KeyboardEvent('keydown', keyOptions));
-        document.dispatchEvent(new KeyboardEvent('keydown', keyOptions));
-
-        // 3. Fallback: Click native war bar UI elements if keypress is intercepted
-        const topWarBar = document.querySelector('.war, [class*="war"], [class*="pvp"]');
-        if (topWarBar && typeof topWarBar.click === 'function') {
-            topWarBar.click();
+        const nativeWarBar = findNativeWarBar();
+        if (nativeWarBar) {
+            triggerFullClick(nativeWarBar);
         }
     }
 
