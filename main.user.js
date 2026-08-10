@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Random Mods 
+// @name         Random Mods
 // @match        https://hordes.io/play*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=hordes.io
-// @version      24.2
+// @version      24.3
 // @description  Random mods taken from other scripts and put into one script.
 // @author       rndms
 // @grant        none
@@ -42,7 +42,8 @@
         partyTransition: true,
         mentionHighlight: true,
         normalChatGmMsg: true,
-        warStatsBtn: true
+        warStatsBtn: true,
+        warStatsCounter: true
     };
 
     if (settings.blackBorders === undefined) settings.blackBorders = true;
@@ -64,6 +65,7 @@
     if (settings.mentionHighlight === undefined) settings.mentionHighlight = true;
     if (settings.normalChatGmMsg === undefined) settings.normalChatGmMsg = true;
     if (settings.warStatsBtn === undefined) settings.warStatsBtn = true;
+    if (settings.warStatsCounter === undefined) settings.warStatsCounter = true;
 
     var syncNativeBuffsState = false;
 
@@ -122,7 +124,6 @@
             css += '#minimapcontainer canvas, #minimapcontainer #minimap, #minimap { display: none !important; }\n';
         }
         if (settings.warStatsBtn) {
-            // Hide the native top-right war button so only custom button shows
             css += 'img.warIcon, .warIcon { display: none !important; }\n';
         }
         if (settings.hideElixir) {
@@ -1132,11 +1133,146 @@
     }
 
     // ==========================================
-    // 4. INTEGRATED BELL ADD-ON MODULES & WAR STATS BUTTON
+    // 4. WAR STATS COUNTER MODULE & SHORTCUT BUTTON
     // ==========================================
 
+    let warStatsUIElements = {};
+
+    function ensureWarStatsUI(warPanel) {
+        if (document.getElementById('custom-war-stats')) return;
+
+        const gridThree = warPanel.querySelector('.grid.three');
+        const targetContainer = (gridThree && gridThree.children[1]) ? gridThree.children[1] : warPanel;
+
+        const wrapper = document.createElement('div');
+        wrapper.id = 'custom-war-stats';
+        wrapper.style.cssText = 'width: 100%; margin: 12px 0; text-align: center;';
+
+        const vgRow = document.createElement('div');
+        vgRow.style.cssText = 'display: flex; gap: 8px; justify-content: center; margin-bottom: 4px;';
+
+        const blRow = document.createElement('div');
+        blRow.style.cssText = 'display: flex; gap: 8px; justify-content: center; margin-top: 4px;';
+
+        warStatsUIElements.vgTexts = [];
+        warStatsUIElements.blTexts = [];
+
+        for (let i = 0; i < 4; i++) {
+            const vgSpan = document.createElement('span');
+            vgSpan.className = 'infosmall';
+            vgSpan.innerHTML = `<img src="/data/ui/classes/${i}.svg?v=8853263" class="svgicon" style="width: 1em; height: 1em; vertical-align: middle;"><span style="margin-left: 4px;">0</span>`;
+            vgRow.appendChild(vgSpan);
+            warStatsUIElements.vgTexts.push(vgSpan.querySelector('span'));
+
+            const blSpan = document.createElement('span');
+            blSpan.className = 'infosmall';
+            blSpan.innerHTML = `<img src="/data/ui/classes/${i}.svg?v=8853263" class="svgicon" style="width: 1em; height: 1em; vertical-align: middle;"><span style="margin-left: 4px;">0</span>`;
+            blRow.appendChild(blSpan);
+            warStatsUIElements.blTexts.push(blSpan.querySelector('span'));
+        }
+
+        const totalRow = document.createElement('div');
+        totalRow.style.cssText = 'display: flex; gap: 8px; justify-content: center; align-items: center; margin: 6px 0;';
+
+        const vgTotal = document.createElement('span');
+        vgTotal.className = 'infosmall textf0';
+        vgTotal.textContent = '0';
+
+        const vs = document.createElement('span');
+        vs.className = 'infosmall';
+        vs.style.fontWeight = 'bold';
+        vs.textContent = 'vs';
+
+        const blTotal = document.createElement('span');
+        blTotal.className = 'infosmall textf1';
+        blTotal.textContent = '0';
+
+        totalRow.appendChild(vgTotal);
+        totalRow.appendChild(vs);
+        totalRow.appendChild(blTotal);
+
+        warStatsUIElements.vgTotal = vgTotal;
+        warStatsUIElements.blTotal = blTotal;
+
+        wrapper.appendChild(vgRow);
+        wrapper.appendChild(totalRow);
+        wrapper.appendChild(blRow);
+
+        targetContainer.appendChild(wrapper);
+    }
+
+    function updateWarStatsCounter() {
+        const existingCounter = document.getElementById('custom-war-stats');
+        if (!settings.warStatsCounter) {
+            if (existingCounter) existingCounter.remove();
+            return;
+        }
+
+        const warPanel = document.querySelector('.panel-black.border.grey') || document.querySelector('.layout.svelte-19s383j');
+        if (!warPanel) return;
+
+        ensureWarStatsUI(warPanel);
+
+        const counts = [
+            [0, 0, 0, 0],
+            [0, 0, 0, 0]
+        ];
+
+        const tbody = warPanel.querySelector('table tbody') || document.querySelector('table tbody');
+
+        if (tbody) {
+            const rows = tbody.querySelectorAll('tr');
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length < 2) return;
+
+                const fameCell = cells[cells.length - 1];
+                const fameValue = parseInt(fameCell.textContent.replace(/[^0-9]/g, ''), 10) || 0;
+
+                if (fameValue > 0) {
+                    let faction = -1;
+                    if (row.querySelector('.textf1') || row.classList.contains('textf1')) {
+                        faction = 1;
+                    } else if (row.querySelector('.textf0') || row.classList.contains('textf0')) {
+                        faction = 0;
+                    }
+
+                    let classIdx = -1;
+                    const imgs = row.querySelectorAll('img');
+                    imgs.forEach(img => {
+                        const src = img.getAttribute('src') || '';
+                        const match = src.match(/classes\/(\d+)/i) || src.match(/(\d+)\.svg/i);
+                        if (match) {
+                            classIdx = parseInt(match[1], 10);
+                        }
+                    });
+
+                    if (faction >= 0 && classIdx >= 0 && classIdx < 4) {
+                        counts[faction][classIdx]++;
+                    }
+                }
+            });
+        }
+
+        if (warStatsUIElements.vgTexts && warStatsUIElements.vgTexts.length === 4) {
+            counts[0].forEach((cnt, i) => {
+                if (warStatsUIElements.vgTexts[i] && warStatsUIElements.vgTexts[i].textContent !== String(cnt)) {
+                    warStatsUIElements.vgTexts[i].textContent = cnt;
+                }
+            });
+            counts[1].forEach((cnt, i) => {
+                if (warStatsUIElements.blTexts[i] && warStatsUIElements.blTexts[i].textContent !== String(cnt)) {
+                    warStatsUIElements.blTexts[i].textContent = cnt;
+                }
+            });
+            const vgSum = counts[0].reduce((a, b) => a + b, 0);
+            const blSum = counts[1].reduce((a, b) => a + b, 0);
+            if (warStatsUIElements.vgTotal && warStatsUIElements.vgTotal.textContent !== String(vgSum)) warStatsUIElements.vgTotal.textContent = vgSum;
+            if (warStatsUIElements.blTotal && warStatsUIElements.blTotal.textContent !== String(blSum)) warStatsUIElements.blTotal.textContent = blSum;
+        }
+    }
+
     function findNativeWarBar() {
-        // Direct target for native war icon
         const warIcon = document.querySelector('img.warIcon, .warIcon');
         if (warIcon) return warIcon;
 
@@ -1697,7 +1833,8 @@
                 title: "Combat",
                 items: [
                     { key: "ccIndicator", id: "rndms-cc", label: "CC Indicator", desc: "" },
-                    { key: "ownBuffsOnly", id: "rndms-ownbuffs", label: "Show Own Buffs Only", desc: "" }
+                    { key: "ownBuffsOnly", id: "rndms-ownbuffs", label: "Show Own Buffs Only", desc: "" },
+                    { key: "warStatsCounter", id: "rndms-warstatscounter", label: "War Stats Counter", desc: "Displays live active player and class breakdown in the War window" }
                 ]
             },
             {
@@ -1792,6 +1929,7 @@
                 }
                 if (setting.key === 'gearSetManager') applyGearManagerVisibility();
                 if (setting.key === 'warStatsBtn') injectWarStatsButton();
+                if (setting.key === 'warStatsCounter') updateWarStatsCounter();
             });
         });
 
@@ -1855,6 +1993,9 @@
         yellChatStyleRule.disabled = !settings.yellChat;
         debugBarStyleRule.disabled = !settings.removeBarTexts;
 
+        // Start background scanning for War Stats
+        setInterval(updateWarStatsCounter, 300);
+
         // Mutation Observer Engine
         var isModifyingDOM = false;
 
@@ -1873,6 +2014,7 @@
                 addRndmsSettings();
                 injectBuffsButton();
                 injectWarStatsButton();
+                updateWarStatsCounter();
                 updateRemovalStyles();
 
                 let equipSlots = document.getElementById("equipslots");
