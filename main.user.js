@@ -2,7 +2,7 @@
 // @name         Random Mods
 // @match        https://hordes.io/play*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=hordes.io
-// @version      24.3
+// @version      24.4
 // @description  Random mods taken from other scripts and put into one script.
 // @author       rndms
 // @grant        none
@@ -43,7 +43,10 @@
         mentionHighlight: true,
         normalChatGmMsg: true,
         warStatsBtn: true,
-        warStatsCounter: true
+        warStatsCounter: true,
+        movableMap: false,
+        minimapX: 0,
+        minimapY: 0
     };
 
     if (settings.blackBorders === undefined) settings.blackBorders = true;
@@ -66,6 +69,9 @@
     if (settings.normalChatGmMsg === undefined) settings.normalChatGmMsg = true;
     if (settings.warStatsBtn === undefined) settings.warStatsBtn = true;
     if (settings.warStatsCounter === undefined) settings.warStatsCounter = true;
+    if (settings.movableMap === undefined) settings.movableMap = false;
+    if (settings.minimapX === undefined) settings.minimapX = 0;
+    if (settings.minimapY === undefined) settings.minimapY = 0;
 
     var syncNativeBuffsState = false;
 
@@ -86,6 +92,59 @@
 
     var kekuiStyleRule = document.createElement('style');
     document.head.appendChild(kekuiStyleRule);
+
+    var minimapStyleRule = document.createElement('style');
+    document.head.appendChild(minimapStyleRule);
+
+    function updateMinimapStyles() {
+        const selector = 'canvas.border.black.minimap';
+        minimapStyleRule.textContent = `
+            ${selector} {
+                cursor: ${settings.movableMap ? 'grab' : 'default'};
+                transform: translate(${settings.minimapX}px, ${settings.minimapY}px);
+            }
+            ${selector}.dragging {
+                cursor: grabbing !important;
+            }
+        `;
+    }
+
+    function initMovableMinimap() {
+        const selector = 'canvas.border.black.minimap';
+        const minimap = document.querySelector(selector);
+        if (!minimap) {
+            setTimeout(initMovableMinimap, 1000);
+            return;
+        }
+
+        updateMinimapStyles();
+        let isDragging = false;
+        let startX, startY;
+
+        minimap.addEventListener('mousedown', (e) => {
+            if (!settings.movableMap) return;
+            isDragging = true;
+            minimap.classList.add('dragging');
+            startX = e.clientX - settings.minimapX;
+            startY = e.clientY - settings.minimapY;
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging || !settings.movableMap) return;
+            settings.minimapX = e.clientX - startX;
+            settings.minimapY = e.clientY - startY;
+            minimap.style.transform = `translate(${settings.minimapX}px, ${settings.minimapY}px)`;
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                minimap.classList.remove('dragging');
+                saveSettings();
+            }
+        });
+    }
 
     function updateDebugBarPosition() {
         const kekUIActive = !settings.hideKekui && (
@@ -1706,15 +1765,15 @@
             labels.forEach(lbl => {
                 const titleText = lbl.querySelector('span')?.textContent.toLowerCase() || '';
                 const descText = lbl.querySelector('.rndms-desc')?.textContent.toLowerCase() || '';
-                const checkbox = lbl.nextElementSibling;
+                const nextEl = lbl.nextElementSibling;
 
                 if (titleText.includes(term) || descText.includes(term)) {
                     lbl.style.display = 'flex';
-                    if (checkbox) checkbox.style.display = 'block';
+                    if (nextEl) nextEl.style.display = nextEl.tagName === 'BUTTON' ? 'inline-block' : 'block';
                     hasVisibleItems = true;
                 } else {
                     lbl.style.display = 'none';
-                    if (checkbox) checkbox.style.display = 'none';
+                    if (nextEl) nextEl.style.display = 'none';
                 }
             });
 
@@ -1842,6 +1901,8 @@
                 items: [
                     { key: "classColors", id: "rndms-classcolors", label: "Class Colours", desc: "" },
                     { key: "blackBorders", id: "rndms-borders", label: "Black Borders", desc: "" },
+                    { key: "movableMap", id: "rndms-movablemap", label: "Movable Map", desc: "Allows dragging the minimap when turned on", type: "checkbox" },
+                    { type: "button", id: "rndms-resetmap", label: "Reset Map Location", desc: "Returns the minimap to its original position" },
                     { key: "partyTransition", id: "rndms-partyanim", label: "Party Animation", desc: "" },
                     { key: "removeInventoryFilter", id: "rndms-invfilter", label: "Hide Inv Filter", desc: "" },
                     { key: "removeUpgradeButton", id: "rndms-upgradebtn", label: "Hide Stash Upgrade", desc: "" },
@@ -1880,7 +1941,15 @@
                             ${section.title}
                         </div>
                         <div class="settings svelte-13nnce4" style="flex:0;">
-                            ${section.items.map(setting => `
+                            ${section.items.map(setting => setting.type === 'button' ? `
+                                <div class="rndms-label-container">
+                                    <span>${setting.label}</span>
+                                    ${setting.desc ? `<div class="rndms-desc">${setting.desc}</div>` : ''}
+                                </div>
+                                <div>
+                                    <button class="btn black textprimary" id="${setting.id}" style="font: 12px hordes; padding: 4px 10px; cursor: pointer;">Reset</button>
+                                </div>
+                            ` : `
                                 <div class="rndms-label-container">
                                     <span>${setting.label}</span>
                                     ${setting.desc ? `<div class="rndms-desc">${setting.desc}</div>` : ''}
@@ -1906,8 +1975,22 @@
             });
         }
 
+        // Reset map position button listener
+        const resetMapBtn = document.getElementById('rndms-resetmap');
+        if (resetMapBtn) {
+            resetMapBtn.addEventListener('click', () => {
+                settings.minimapX = 0;
+                settings.minimapY = 0;
+                saveSettings();
+                const minimap = document.querySelector('canvas.border.black.minimap');
+                if (minimap) {
+                    minimap.style.transform = 'translate(0px, 0px)';
+                }
+            });
+        }
+
         // Checkbox listeners
-        const allSettingItems = sections.flatMap(s => s.items);
+        const allSettingItems = sections.flatMap(s => s.items).filter(i => i.key);
 
         allSettingItems.forEach(setting => {
             const btn = document.getElementById(setting.id);
@@ -1923,6 +2006,7 @@
                 if (setting.key === 'classColors') classColorsStyleRule.disabled = !settings.classColors;
                 if (setting.key === 'yellChat') yellChatStyleRule.disabled = !settings.yellChat;
                 if (setting.key === 'removeBarTexts') debugBarStyleRule.disabled = !settings.removeBarTexts;
+                if (setting.key === 'movableMap') updateMinimapStyles();
                 if (setting.key === 'ownBuffsOnly') {
                     checkAndSyncBuffs();
                     updateBuffsButtonState();
@@ -1964,6 +2048,7 @@
 
     function initUI() {
         updateRemovalStyles();
+        initMovableMinimap();
 
         var bStr = '#skillbar { background-color: black !important; background: black !important; border-color: black !important; } ';
         bStr += '.border.slot.white, .border.slot.purp, .border.slot.grey, .border.slot.blue, .border.slot.green { border-color: black !important; box-shadow: none !important; }';
